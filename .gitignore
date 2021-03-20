@@ -1,0 +1,11 @@
+## Mac OSX ##
+.DS_Store
+
+## NPM ##
+node_modules
+
+## Client Files ##
+legacy-fec-codebase
+
+## Data ##
+data

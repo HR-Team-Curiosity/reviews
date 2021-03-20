@@ -1,0 +1,26 @@
+{
+  "name": "reviews",
+  "version": "1.0.0",
+  "description": "",
+  "main": ".eslintrc.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start-server": "nodemon server/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HR-Team-Curiosity/reviews.git"
+  },
+  "author": "CR",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HR-Team-Curiosity/reviews/issues"
+  },
+  "homepage": "https://github.com/HR-Team-Curiosity/reviews#readme",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "mongodb": "^3.6.5"
+  }
+}
