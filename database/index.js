@@ -7,6 +7,7 @@ const url = 'mongodb://localhost:27017';
 const dbName = 'sdc';
 var count = 0;
 var operations = [];
+var productIds = {};
 
 MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (err, client) => {
   if (err) {
@@ -17,79 +18,137 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
   const db = client.db(dbName);
   const reviewsCollection = db.collection('reviews');
   reviewsCollection.drop();
-
-
-  // use csv-parser
-  // dont need product id or name
-  // fs.createReadStream (for each csv file!!) => repeat this step
-  // then pipe into parser
-  // inside for await loop:
-  // clean data
-  // group by productid
-  // update 10k records at once (look at Mongo upsert command but slower than insert) => bulkWrite? (create variable to store # of records you've gotten, meet limit then execute, then clear variables)
-
-  // db.listCollections({ name: 'reviews' })
-  //   .next((err, collectionInfo) => {
-  //     if (collectionInfo) {
-  //       reviewsCollection.drop();
-  //     } else {
-  //       db.createCollection('reviews');
-  //     }
-  //   });
+  const mongoBulkWrite = () => {
+    reviewsCollection.bulkWrite(operations, { ordered: true });
+    operations = [];
+    count = 0;
+  };
 
   (async () => {
-    const parser = fs.createReadStream(path.resolve(__dirname, '../data/reviews.csv'), 'utf8').pipe(csv())
-    const mongoBulkWrite = () => {
-      reviewsCollection.bulkWrite(operations, { ordered: true });
-      operations = [];
-      count = 0;
-    };
+    const parser = fs.createReadStream(path.resolve(__dirname, '../data/reviews.csv'), 'utf8').pipe(csv());
     for await (const record of parser) {
+      var recommend, reported, response;
       if (count >= 10000) {
         mongoBulkWrite();
-      } else {
-        if (record['recommend'] === 'true' || record['recommend'] === 'false') {
-          if (record['recommend'] === 'true') {
-            var recommend = 1;
-          } else {
-            var recommend = 0;
-          }
-        }
-        if (record['reported'] === 'true' || record['reported'] === 'false') {
-          if (record['reported'] === 'true') {
-            var reported = 1;
-          } else {
-            var reported = 0;
-          }
-        }
-        if (record['response'] === '') {
-          var response = null;
-        }
-        var document = { insertOne: {
-          'id': Number(record['id']),
+      }
+
+      // check if document with current product id has already been created
+      if (!productIds[record['product_id']]) {
+        var product = { insertOne: {
           'product_id': Number(record['product_id']),
+          'recommend': {
+            'true': 0,
+            'false': 0
+          },
+          'characteristics': {
+            'fit': {
+              'id': 0,
+              'value': 0
+            },
+            'length': {
+              'id': 0,
+              'value': 0
+            },
+            'comfort': {
+              'id': 0,
+              'value': 0
+            },
+            'quality': {
+              'id': 0,
+              'value': 0
+            },
+            'size': {
+              'id': 0,
+              'value': 0
+            },
+            'width': {
+              'id': 0,
+              'value': 0
+            }
+          },
+          'ratings': {
+            '1': 0,
+            '2': 0,
+            '3': 0,
+            '4': 0,
+            '5': 0
+          },
+          'reviews': []
+        }}
+        productIds[Number(record['product_id'])] = true;
+        operations.push(product);
+      }
+
+      if (record['recommend'].includes('true') || record['recommend'].includes('1')) {
+        recommend = true;
+      } else {
+        recommend = false;
+      }
+
+      if (record['reported'].includes('true') || record['reported'].includes('1')) {
+        reported = true;
+      } else {
+        reported = false;
+      }
+
+      if (record['response'] === '') {
+        response = null;
+      } else {
+        response = record['response'];
+      }
+
+      var review = { updateOne: {
+        'filter': { product_id: Number(record['product_id']) },
+        'update': { $push: { reviews: {
+          'review_id': Number(record['id']),
           'rating': Number(record['rating']),
           'date': record['date'],
           'summary': record['summary'],
           'body': record['body'],
-          'recommend': recommend || Number(record['recommend']),
-          'reported': reported || Number(record['reported']),
+          'recommend': recommend,
+          'reported': reported,
           'reviewer_name': record['reviewer_name'],
           'reviewer_email': record['reviewer_email'],
-          'response': response || record['response'],
-          'helpfulness': Number(record['helpfulness'])
+          'response': response,
+          'helpfulness': Number(record['helpfulness']),
+          'photos': []
+        }}}
+      }}
+      operations.push(review);
+      count++;
+    }
+    mongoBulkWrite();
+    console.log('Finished importing reviews.csv');
+  })()
+  .catch(err => {
+    console.log('Error: cannot write reviews.csv to MongoDB', err);
+  })
+
+});
+
+// ETL Update Template:
+/*
+  (async () => {
+    const parser = fs.createReadStream(path.resolve(__dirname, '../data/XXX'), 'utf8').pipe(csv());
+    for await (const record of parser) {
+      if (count >= 10000) {
+        mongoBulkWrite();
+      } else {
+        var document = { updateOne: {
+          'filter': { product_id: Number(record['product_id']) },
+          'update': { $push: { reviews: {
+            'review_id': Number(record['id'])
+          }}}
         }}
         operations.push(document);
         count++;
       }
     }
     mongoBulkWrite();
-    console.log('Finished importing reviews');
+    console.log('Finished importing XXX');
   })()
   .catch(err => {
-    console.log('Error: cannot write to MongoDB', err);
+    console.log('Error: cannot write XXX to MongoDB', err);
   })
-
-  // after finishing operations, client.close()
-});
+*/
 
