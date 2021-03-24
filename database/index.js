@@ -10,6 +10,7 @@ const port = 8080;
 const dbName = 'sdc';
 var csvData = {};
 var count = 0;
+var totalCount = 0;
 var operations = [];
 var reviewPhotos = [];
 var lastProductId = '';
@@ -30,11 +31,9 @@ app.listen(port, () => {
     console.log(`Database: ${dbName}`);
     const db = client.db(dbName);
     const reviewsCollection = db.collection('reviews');
-
-    // reviewsCollection.drop();
-
-    // reviewsCollection.createIndex({ product_id: 1 });
-    // reviewsCollection.createIndex({ 'reviews.review_id': 1 });
+    reviewsCollection.drop();
+    reviewsCollection.createIndex({ product_id: 1 });
+    reviewsCollection.createIndex({ 'reviews.review_id': 1 });
 
     const mongoBulkWrite = async (type) => {
       for (const key in csvData) {
@@ -53,11 +52,12 @@ app.listen(port, () => {
     // ETL Process for reviews.csv
     (async () => {
       const parser = fs.createReadStream(path.resolve(__dirname, '../data/reviews.csv'), 'utf8').pipe(csv());
-      console.log('starting import of reviews...');
+      console.log('Starting import of reviews...');
       for await (const record of parser) {
         var recommend, reported, response, productId = record['product_id'];
         if (count >= 10000 && productId !== lastProductId) {
           await mongoBulkWrite('insert');
+          console.log(`Imported ${totalCount.toLocaleString()} reviews out of 5,777,922 total reviews...`);
         }
         if (!csvData[productId]) {
           var product = {
@@ -100,40 +100,35 @@ app.listen(port, () => {
           'characteristics': {}
         }
         csvData[productId]['reviews'].push(review);
+        totalCount++;
       }
       await mongoBulkWrite('insert');
       console.log('Finished importing reviews.csv!');
+      totalCount = 0;
     })()
     .catch(err => {
       console.log('Error: cannot write reviews.csv to MongoDB', err);
     })
+    // ETL Process for reviews_photos.csv
     .then(results => {
-      // ETL Process for reviews_photos.csv
       (async () => {
         const parser = fs.createReadStream(path.resolve(__dirname, '../data/reviews_photos.csv'), 'utf8').pipe(csv());
-        console.log('starting import of review photos...');
+        console.log('Starting import of review photos...');
         for await (const record of parser) {
           var reviewId = record['review_id'];
-          // one issue with this conditional is that it doesnt run for the last record...still need to fix this
           if (Number(reviewId) > Number(lastReviewId)) {
-            // previous code: wasn't working
-            // var photo = {
-            //   'filter': { 'reviews.review_id': Number(lastReviewId) },
-            //   'update': { $set: { 'reviews.$.photos': reviewPhotos } },
-            //   'upsert': true,
-            //   'hint': { 'reviews.review_id': 1 }
-            // }
-            var photo = {
+            var photos = {
               'filter': { 'reviews.review_id': Number(lastReviewId) },
               'update': { $addToSet: { 'reviews.$.photos': { $each: reviewPhotos } } },
               'hint': { 'reviews.review_id': 1 }
             }
-            csvData[lastReviewId] = photo;
+            csvData[lastReviewId] = photos;
             count++;
             reviewPhotos = [];
           }
           if (count >= 10000 && reviewId !== lastReviewId) {
             await mongoBulkWrite('update');
+            console.log(`Imported ${totalCount.toLocaleString()} photos out of 2,742,832 total photos...`);
           }
           if (!csvData[reviewId]) {
             lastReviewId = reviewId;
@@ -144,70 +139,22 @@ app.listen(port, () => {
             'url': record['url']
           }
           reviewPhotos.push(photo);
+          totalCount++;
         }
+        var photos = {
+          'filter': { 'reviews.review_id': Number(lastReviewId) },
+          'update': { $addToSet: { 'reviews.$.photos': { $each: reviewPhotos } } },
+          'hint': { 'reviews.review_id': 1 }
+        }
+        csvData[lastReviewId] = photos;
         await mongoBulkWrite('update');
         console.log('Finished importing reviews_photos.csv!');
+        totalCount = 0;
       })()
       .catch(err => {
         console.log('Error: cannot write reviews_photos.csv to MongoDB', err);
       });
-
-    // ETL process for other files that I still need to refactor
-    //   .then(results => {
-    //     // ETL Process for characteristics.csv
-    //     (async () => {
-    //       const parser = fs.createReadStream(path.resolve(__dirname, '../data/characteristics.csv'), 'utf8').pipe(csv());
-    //       console.log('starting import of characteristics...')
-    //       for await (const record of parser) {
-    //         if (count >= 10000) {
-    //           await mongoBulkWrite();
-    //         } else {
-    //           var characteristic = { updateOne: {
-    //             'filter': { product_id: record['product_id']},
-    //             'update': { $push: { characteristics: {
-    //               'characteristic_id': Number(record['id']),
-    //               'name': record['name']
-    //             }}}
-    //           }}
-    //           operations.push(characteristic);
-    //           count++;
-    //         }
-    //       }
-    //       await mongoBulkWrite();
-    //       console.log('Finished importing characteristics.csv');
-    //     })()
-    //     .catch(err => {
-    //       console.log('Error: cannot write characteristics.csv to MongoDB', err);
-    //     })
-    //     .then(results => {
-    //       // ETL Process for characteristic_reviews.csv
-    //       (async () => {
-    //         const parser = fs.createReadStream(path.resolve(__dirname, '../data/characteristic_reviews.csv'), 'utf8').pipe(csv());
-    //         console.log('starting import of characteristic_reviews...')
-    //         for await (const record of parser) {
-    //           if (count >= 10000) {
-    //             await mongoBulkWrite();
-    //           } else {
-    //             var characteristic = { updateOne: {
-    //               'filter': { reviews: { $elemMatch: { review_id: record['review_id']}}},
-    //               'update': { $set: { characteristics: {
-    //                 'characteristic_id': Number(record['characteristic_id']),
-    //                 'value': Number(record['value'])
-    //               }}}
-    //             }}
-    //             operations.push(characteristic);
-    //             count++;
-    //           }
-    //         }
-    //         await mongoBulkWrite();
-    //         console.log('Finished importing characteristic_reviews.csv');
-    //       })()
-    //       .catch(err => {
-    //         console.log('Error: cannot write characteristic_reviews.csv to MongoDB', err);
-    //       });
-    //     })
-    //   })
-    // })
+    })
   });
 });
 
@@ -226,80 +173,3 @@ app.listen(port, () => {
 //   var params = [req.params.id, req.params.sortString, req.params.count];
 //   reviewsCollection.find({ product_id: params[0], reviews: {qty: params[2]}}).limit(5);
 // });
-
-// ETL Update Template:
-/*
-  (async () => {
-    const parser = fs.createReadStream(path.resolve(__dirname, '../data/XXX'), 'utf8').pipe(csv());
-    for await (const record of parser) {
-      if (count >= 10000) {
-        await mongoBulkWrite();
-      } else {
-        var document = { updateOne: {
-          'filter': { product_id: Number(record['product_id']) },
-          'update': { $push: { reviews: {
-            'review_id': Number(record['id'])
-          }}}
-        }}
-        operations.push(document);
-        count++;
-      }
-    }
-    await mongoBulkWrite();
-    console.log('Finished importing XXX');
-  })()
-  .catch(err => {
-    console.log('Error: cannot write XXX to MongoDB', err);
-  })
-*/
-
-// Random notes -- ignore for now
-// db.reviews.bulkWrite([
-//   { updateOne:
-//     {
-//       "filter": { 'reviews.review_id': 6},
-//       "update": { $set: { 'reviews.$.photos': [{"photo_id": 1, "url": "https://images.unsplash.com/photo-1560570803-7474c0f9af99?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=975&q=80"}]}},
-//       'hint': { 'reviews.review_id': 1 }
-//     }
-//   }
-// ])
-
-// db.reviews.bulkWrite([
-//   { updateOne:
-//     {
-//       "filter": { 'reviews.review_id': 6},
-//       "update": { $set: { 'reviews.$.photos': [{"photo_id": 1, "url": "https://images.unsplash.com/photo-1560570803-7474c0f9af99?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=975&q=80"}]}}
-//     }
-//   }
-// ])
-
-// db.reviews.bulkWrite([
-//   { updateOne:
-//     {
-//       'filter': { 'reviews.review_id': 6 },
-//       'update': { $set: { 'reviews.$.photos': [{"photo_id": 1, "url": "https://images.unsplash.com/photo-1560570803-7474c0f9af99?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=975&q=80"}] } },
-//       'upsert': true,
-//       'hint': { 'reviews.review_id': 1 }
-//     }
-//   }
-// ])
-
-// {
-//   'filter': { 'reviews.review_id': Number(lastReviewId) },
-//   'update': { $set: { 'reviews.$.photos': reviewPhotos } },
-//   'upsert': true,
-//   'hint': { 'reviews.review_id': 1 }
-// }
-
-// db.reviews.find({ 'reviews.review_id': 21172 })
-
-// db.reviews.bulkWrite([
-//   { updateOne:
-//     {
-//       'filter': { 'reviews.review_id': 21175 },
-//       'update': { $set: { 'reviews.$.photos': [{"photo_id": 1, "url": "https://images.unsplash.com/photo-1560570803-7474c0f9af99?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=975&q=80"}] } },
-//       'upsert': true,
-//       'hint': { 'reviews.review_id': 1 }
-//     }
-//   }
-// ])
