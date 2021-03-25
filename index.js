@@ -4,17 +4,17 @@ const csv = require('csv-parser');
 const MongoClient = require('mongodb').MongoClient;
 const url = 'mongodb://localhost:27017';
 const dbName = 'sdc';
-var csvData = {};
 var count = 0;
+var csvData = {};
 var totalCount = 0;
 var operations = [];
 var reviewPhotos = [];
-var lastProductId = '';
 var lastReviewId = '';
+var lastProductId = '';
 
 MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (err, client) => {
   if (err) {
-    return console.log('Error: unable to connect to MongoDB');
+    return console.error('Error: unable to connect to MongoDB', err);
   }
   console.log(`Connected MongoDB: ${url}`);
   console.log(`Database: ${dbName}`);
@@ -46,7 +46,9 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
       var recommend, reported, response, productId = record['product_id'];
       if (count >= 10000 && productId !== lastProductId) {
         await mongoBulkWrite('insert');
-        console.log(`Imported ${totalCount.toLocaleString()} reviews out of 5,777,922 total reviews...`);
+        if (totalCount % 100000 === 0) {
+          console.log(`Imported ${totalCount.toLocaleString()} reviews out of 5,777,922 total reviews...`);
+        }
       }
       if (!csvData[productId]) {
         var product = {
@@ -96,7 +98,7 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
     totalCount = 0;
   })()
   .catch(err => {
-    console.log('Error: cannot write reviews.csv to MongoDB', err);
+    console.error('Error: cannot write reviews.csv to MongoDB', err);
   })
   // ETL Process for reviews_photos.csv
   .then(results => {
@@ -117,7 +119,9 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
         }
         if (count >= 10000 && reviewId !== lastReviewId) {
           await mongoBulkWrite('update');
-          console.log(`Imported ${totalCount.toLocaleString()} photos out of 2,742,832 total photos...`);
+          if (totalCount % 100000 === 0) {
+            console.log(`Imported ${totalCount.toLocaleString()} photos out of 2,742,832 total photos...`);
+          }
         }
         if (!csvData[reviewId]) {
           lastReviewId = reviewId;
@@ -141,7 +145,7 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
       totalCount = 0;
     })()
     .catch(err => {
-      console.log('Error: cannot write reviews_photos.csv to MongoDB', err);
+      console.error('Error: cannot write reviews_photos.csv to MongoDB', err);
     });
   })
 });
