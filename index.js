@@ -20,7 +20,9 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
   console.log(`Database: ${dbName}`);
   const db = client.db(dbName);
   const reviewsCollection = db.collection('reviews');
+  const idManager = db.collection('idManager');
   reviewsCollection.drop();
+  idManager.drop();
   reviewsCollection.createIndex({ product_id: 1 });
   reviewsCollection.createIndex({ 'reviews.review_id': 1 });
 
@@ -94,6 +96,7 @@ MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true }, (e
       totalCount++;
     }
     await mongoBulkWrite('insert');
+    await idManager.insertOne({ review_id: totalCount });
     console.log('Finished importing reviews.csv!');
     totalCount = 0;
   })()
