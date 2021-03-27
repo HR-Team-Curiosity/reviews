@@ -2,7 +2,8 @@ const cors = require('cors');
 const path = require('path');
 const express = require('express');
 const bodyParser = require('body-parser');
-const url = 'mongodb://localhost:27017';
+// const url = 'mongodb://localhost:27017';
+const url = 'mongodb://127.0.0.1:27017';
 const ObjectID = require('mongodb').ObjectID;
 const MongoClient = require('mongodb').MongoClient;
 let db, reviewsCollection, idManager;
@@ -27,13 +28,16 @@ app.get('/reviews/:id/list', (req, res) => {
     if (err) {
       console.error('Error: cannot retreive product\'s reviews', err);
     } else {
-      var queryData = {
-        '_id': data[0]['_id'],
-        'product_id': data[0]['product_id'],
-        'characteristics': data[0]['characteristics'],
-        'reviews': data[0]['reviews'].slice(0, query[0])
-      };
-      res.status(200).send(queryData);
+      if (!data.length) {
+        res.status(200).send('No reviews for that product exist.');
+      } else {
+        var queryData = {
+          'product_id': data[0]['product_id'],
+          'characteristics': data[0]['characteristics'],
+          'reviews': data[0]['reviews'].slice(0, query[0])
+        };
+        res.status(200).send(queryData);
+      }
     }
   });
 });
@@ -47,7 +51,6 @@ app.post('/reviews/:id', (req, res) => {
     })
     .then(response => {
       newReview = {
-        '_id': new ObjectID(Number(req.params.id)),
         'review_id': response.value['review_id'],
         'rating': req.body.rating,
         'date': new Date().toJSON().slice(0, 10).replace(/-/g, '-'),

@@ -1,0 +1,43 @@
+config:
+  target: 'http://127.0.0.1:8080'
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: Warm up load
+    - duration: 120
+      arrivalRate: 5
+      rampTo: 100
+      name: Ramp up load
+    - duration: 600
+      arrivalRate: 100
+      name: Sustained max load
+
+scenarios:
+  - name: "Find all reviews for a product"
+    flow:
+      - log: "New virtual user running"
+      - get:
+          url: "/reviews/{{ $randomNumber(1,1000010) }}/list?count={{ $randomNumber(1,5) }}"
+  - name: "Create a new review for a product"
+    flow:
+      - log: "New virtual user running"
+      - post:
+          url: "/reviews/{{ $randomNumber(1,1000010) }}"
+          json:
+            rating: 5,
+            summary: "example test"
+            body: "example test body"
+            recommend: true
+            name: "example name"
+            email: "example@gmail.com"
+            photos: []
+            characteristics: {}
+
+# To run in terminal, use CL: "npx artillery run server-routes.yml"
+
+# Quick commands:
+# "npx artillery quick -c 10 -n 20 http://127.0.0.1:8080/reviews/150000/list"
+
+# Report commands:
+# "npx artillery run --output server-routes-report.json ./tests/server-routes.yml"
+# "npx artillery report --output server-routes-report.html server-routes-report.json"
