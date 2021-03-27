@@ -16,6 +16,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.resolve(__dirname, './legacy-fec-codebase/frontend-capstone/dist')));
 
+app.get('/loaderio-dc74aae86517cf33890168cbeb5e792a/', (req, res) => {
+  res.send('loaderio-dc74aae86517cf33890168cbeb5e792a');
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.resolve(__dirname, './legacy-fec-codebase/frontend-capstone/dist/index.html'));
 });
