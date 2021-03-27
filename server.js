@@ -16,8 +16,8 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.resolve(__dirname, './legacy-fec-codebase/frontend-capstone/dist')));
 
-app.get('/loaderio-dc74aae86517cf33890168cbeb5e792a/', (req, res) => {
-  res.send('loaderio-dc74aae86517cf33890168cbeb5e792a');
+app.get('/loaderio-02e6e4ef145388f511cb36adcbce87ee/', (req, res) => {
+  res.send('loaderio-02e6e4ef145388f511cb36adcbce87ee');
 });
 
 app.get('/', (req, res) => {
